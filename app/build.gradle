@@ -54,7 +54,7 @@ dependencies {
         exclude module: 'support-annotations'
     })
 
-    implementation 'com.github.yausername:NewPipeExtractor:b1a77fa'
+    implementation 'com.github.yausername:NewPipeExtractor:fade7bd'
 
     testImplementation 'junit:junit:4.12'
     testImplementation 'org.mockito:mockito-core:2.23.0'
@@ -97,4 +97,6 @@ dependencies {
 
     implementation "com.squareup.okhttp3:okhttp:${okHttpLibVersion}"
     debugImplementation "com.facebook.stetho:stetho-okhttp3:${stethoLibVersion}"
+
+    implementation "com.github.TorrentStream:TorrentStreamServer-Android:1.0.5"
 }

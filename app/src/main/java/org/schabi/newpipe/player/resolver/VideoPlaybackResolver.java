@@ -4,21 +4,24 @@ import android.content.Context;
 import android.net.Uri;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.widget.Toast;
 
+import com.github.se_bastiaan.torrentstreamserver.TorrentStreamNotInitializedException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.MergingMediaSource;
 
 import org.schabi.newpipe.extractor.MediaFormat;
-import org.schabi.newpipe.extractor.stream.SubtitlesStream;
 import org.schabi.newpipe.extractor.stream.AudioStream;
 import org.schabi.newpipe.extractor.stream.StreamInfo;
 import org.schabi.newpipe.extractor.stream.SubtitlesStream;
 import org.schabi.newpipe.extractor.stream.VideoStream;
 import org.schabi.newpipe.player.helper.PlayerDataSource;
 import org.schabi.newpipe.player.helper.PlayerHelper;
+import org.schabi.newpipe.player.helper.TorrentHelper;
 import org.schabi.newpipe.util.ListHelper;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -70,7 +73,15 @@ public class VideoPlaybackResolver implements PlaybackResolver {
         @Nullable final VideoStream video = tag.getSelectedVideoStream();
 
         if (video != null) {
-            final MediaSource streamSource = buildMediaSource(dataSource, video.getUrl(),
+            String url = video.getUrl();
+            if (null != video.getTorrentUrl()) {
+                try {
+                    url = TorrentHelper.startStream(video.getTorrentUrl());
+                } catch (IOException | TorrentStreamNotInitializedException | InterruptedException e) {
+                    Toast.makeText(context, "unable to start torrent player", Toast.LENGTH_SHORT).show();
+                }
+            }
+            final MediaSource streamSource = buildMediaSource(dataSource, url,
                     PlayerHelper.cacheKeyOf(info, video),
                     MediaFormat.getSuffixById(video.getFormatId()), tag);
             mediaSources.add(streamSource);

@@ -61,6 +61,7 @@ import org.schabi.newpipe.player.helper.LoadController;
 import org.schabi.newpipe.player.helper.MediaSessionManager;
 import org.schabi.newpipe.player.helper.PlayerDataSource;
 import org.schabi.newpipe.player.helper.PlayerHelper;
+import org.schabi.newpipe.player.helper.TorrentHelper;
 import org.schabi.newpipe.player.mediasource.FailedMediaSource;
 import org.schabi.newpipe.player.playback.BasePlayerMediaSession;
 import org.schabi.newpipe.player.playback.CustomTrackSelector;
@@ -322,6 +323,7 @@ public abstract class BasePlayer implements
         databaseUpdateReactor.clear();
         progressUpdateReactor.set(null);
 
+        TorrentHelper.stopStream();
     }
 
     /*//////////////////////////////////////////////////////////////////////////
