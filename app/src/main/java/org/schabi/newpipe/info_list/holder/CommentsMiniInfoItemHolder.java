@@ -8,6 +8,7 @@ import android.widget.TextView;
 
 import org.schabi.newpipe.R;
 import org.schabi.newpipe.extractor.InfoItem;
+import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.comments.CommentsInfoItem;
 import org.schabi.newpipe.info_list.InfoItemBuilder;
 import org.schabi.newpipe.report.ErrorActivity;
@@ -54,12 +55,17 @@ public class CommentsMiniInfoItemHolder extends InfoItemHolder {
             @Override
             public void onClick(View view) {
                 try {
-                    final AppCompatActivity activity = (AppCompatActivity) itemBuilder.getContext();
-                    NavigationHelper.openChannelFragment(
-                            activity.getSupportFragmentManager(),
-                            item.getServiceId(),
-                            item.getAuthorEndpoint(),
-                            item.getAuthorName());
+                    boolean acceptsChannelUrl = NewPipe.getService(item.getServiceId()).getChannelLHFactory().acceptUrl(item.getAuthorEndpoint());
+                    if(acceptsChannelUrl){
+                        final AppCompatActivity activity = (AppCompatActivity) itemBuilder.getContext();
+                        NavigationHelper.openChannelFragment(
+                                activity.getSupportFragmentManager(),
+                                item.getServiceId(),
+                                item.getAuthorEndpoint(),
+                                item.getAuthorName());
+                    }else{
+                        NavigationHelper.openLinkInBrowser(itemBuilder.getContext(), item.getAuthorEndpoint());
+                    }
                 } catch (Exception e) {
                     ErrorActivity.reportUiError((AppCompatActivity) itemBuilder.getContext(), e);
                 }

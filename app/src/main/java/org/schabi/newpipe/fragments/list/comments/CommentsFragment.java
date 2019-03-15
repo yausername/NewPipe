@@ -1,72 +1,30 @@
 package org.schabi.newpipe.fragments.list.comments;
 
-import android.app.Activity;
 import android.content.Context;
-import android.content.DialogInterface;
-import android.content.Intent;
-import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.ActionBar;
-import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.TextView;
-
-import com.jakewharton.rxbinding2.view.RxView;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.Spinner;
 
 import org.schabi.newpipe.R;
-import org.schabi.newpipe.database.subscription.SubscriptionEntity;
-import org.schabi.newpipe.extractor.InfoItem;
 import org.schabi.newpipe.extractor.ListExtractor;
 import org.schabi.newpipe.extractor.NewPipe;
-import org.schabi.newpipe.extractor.channel.ChannelInfo;
+import org.schabi.newpipe.extractor.ServiceList;
 import org.schabi.newpipe.extractor.comments.CommentsInfo;
-import org.schabi.newpipe.extractor.exceptions.ExtractionException;
-import org.schabi.newpipe.extractor.stream.StreamInfoItem;
-import org.schabi.newpipe.fragments.detail.VideoDetailFragment;
 import org.schabi.newpipe.fragments.list.BaseListInfoFragment;
-import org.schabi.newpipe.info_list.InfoItemDialog;
-import org.schabi.newpipe.local.dialog.PlaylistAppendDialog;
-import org.schabi.newpipe.local.subscription.SubscriptionService;
-import org.schabi.newpipe.player.playqueue.ChannelPlayQueue;
-import org.schabi.newpipe.player.playqueue.PlayQueue;
-import org.schabi.newpipe.player.playqueue.SinglePlayQueue;
 import org.schabi.newpipe.report.UserAction;
-import org.schabi.newpipe.util.AnimationUtils;
 import org.schabi.newpipe.util.ExtractorHelper;
-import org.schabi.newpipe.util.ImageDisplayConstants;
-import org.schabi.newpipe.util.Localization;
-import org.schabi.newpipe.util.NavigationHelper;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-
-import io.reactivex.Observable;
 import io.reactivex.Single;
-import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
-import io.reactivex.disposables.Disposable;
-import io.reactivex.functions.Action;
-import io.reactivex.functions.Consumer;
-import io.reactivex.functions.Function;
-import io.reactivex.schedulers.Schedulers;
-
-import static org.schabi.newpipe.util.AnimationUtils.animateBackgroundColor;
-import static org.schabi.newpipe.util.AnimationUtils.animateTextColor;
-import static org.schabi.newpipe.util.AnimationUtils.animateView;
 
 public class CommentsFragment extends BaseListInfoFragment<CommentsInfo> {
 
@@ -74,9 +32,10 @@ public class CommentsFragment extends BaseListInfoFragment<CommentsInfo> {
     /*//////////////////////////////////////////////////////////////////////////
     // Views
     //////////////////////////////////////////////////////////////////////////*/
+    private View headerRootLayout;
 
 
-
+    private Spinner spinner;
     private boolean mIsVisibleToUser = false;
 
     public static CommentsFragment getInstance(int serviceId, String url, String name) {
@@ -123,7 +82,11 @@ public class CommentsFragment extends BaseListInfoFragment<CommentsInfo> {
 
     @Override
     protected Single<CommentsInfo> loadResult(boolean forceLoad) {
-        return ExtractorHelper.getCommentsInfo(serviceId, url, forceLoad);
+        if(null == spinner || spinner.getSelectedItemPosition() == 0){
+            return ExtractorHelper.getCommentsInfo(serviceId, url, forceLoad);
+        }else{
+            return ExtractorHelper.getRedditCommentsInfo(url, forceLoad);
+        }
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -188,5 +151,45 @@ public class CommentsFragment extends BaseListInfoFragment<CommentsInfo> {
     @Override
     protected boolean isGridLayout() {
         return false;
+    }
+
+    @Override
+    protected View getListHeader() {
+        if(serviceId == ServiceList.YouTube.getServiceId()){
+            headerRootLayout = activity.getLayoutInflater().inflate(R.layout.comments_header, itemsList, false);
+            spinner = headerRootLayout.findViewById(R.id.spinner);
+
+            String[] plants = new String[]{
+                    "YouTube",
+                    "Reddit"
+            };
+
+            ArrayAdapter<String> spinnerArrayAdapter = new ArrayAdapter<String>(
+                    getContext(),android.R.layout.simple_spinner_item,plants
+            );
+            spinnerArrayAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            spinner.setAdapter(spinnerArrayAdapter);
+            spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                    resetFragment();
+                    startLoading(false);
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> parent) {
+
+                }
+            });
+            return headerRootLayout;
+        }
+        return null;
+    }
+
+    private void resetFragment() {
+        if (DEBUG) Log.d(TAG, "resetFragment() called");
+        if (disposables != null) disposables.clear();
+        infoListAdapter.showFooter(false);
+        if (infoListAdapter != null) infoListAdapter.clearStreamItemList();
     }
 }

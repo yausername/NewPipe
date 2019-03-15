@@ -825,11 +825,12 @@ public class VideoDetailFragment
     }
 
     private boolean shouldShowComments() {
-        try {
+        /*try {
             return showComments && NewPipe.getService(serviceId).isCommentsSupported();
         } catch (ExtractionException e) {
             return false;
-        }
+        }*/
+        return true;
     }
 
     /*//////////////////////////////////////////////////////////////////////////

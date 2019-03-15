@@ -33,7 +33,9 @@ import org.schabi.newpipe.extractor.InfoItem;
 import org.schabi.newpipe.extractor.ListExtractor.InfoItemsPage;
 import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.channel.ChannelInfo;
+import org.schabi.newpipe.extractor.comments.CommentsExtractor;
 import org.schabi.newpipe.extractor.comments.CommentsInfo;
+import org.schabi.newpipe.extractor.comments.RedditCommentsExtractor;
 import org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException;
 import org.schabi.newpipe.extractor.exceptions.ParsingException;
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException;
@@ -52,8 +54,11 @@ import java.util.List;
 import io.reactivex.Maybe;
 import io.reactivex.Single;
 
+import static org.schabi.newpipe.extractor.ServiceList.YouTube;
+
 public final class ExtractorHelper {
     private static final String TAG = ExtractorHelper.class.getSimpleName();
+    private static final int REDDIT_SERVICE_ID = 1001;
     private static final InfoCache cache = InfoCache.getInstance();
 
     private ExtractorHelper() {
@@ -140,6 +145,14 @@ public final class ExtractorHelper {
         checkServiceId(serviceId);
         return Single.fromCallable(() ->
                 CommentsInfo.getMoreItems(NewPipe.getService(serviceId), info, nextPageUrl));
+    }
+
+    public static Single<CommentsInfo> getRedditCommentsInfo(final String url,
+                                                       boolean forceLoad) {
+        return checkCache(forceLoad, REDDIT_SERVICE_ID, url, InfoItem.InfoType.COMMENT, Single.fromCallable(() -> {
+            CommentsExtractor extractor = new RedditCommentsExtractor(YouTube, YouTube.getCommentsLHFactory().fromUrl(url), NewPipe.getPreferredLocalization());
+            return CommentsInfo.getInfo(extractor);
+        }));
     }
 
     public static Single<PlaylistInfo> getPlaylistInfo(final int serviceId,
