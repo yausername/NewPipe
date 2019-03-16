@@ -10,16 +10,13 @@ import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.annotation.DrawableRes;
-import android.support.annotation.FloatRange;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.AppBarLayout;
 import android.support.design.widget.TabLayout;
 import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewPager;
-import android.support.v4.view.animation.FastOutSlowInInterpolator;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
@@ -55,6 +52,7 @@ import org.schabi.newpipe.ReCaptchaActivity;
 import org.schabi.newpipe.download.DownloadDialog;
 import org.schabi.newpipe.extractor.InfoItem;
 import org.schabi.newpipe.extractor.NewPipe;
+import org.schabi.newpipe.extractor.ServiceList;
 import org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException;
 import org.schabi.newpipe.extractor.exceptions.ExtractionException;
 import org.schabi.newpipe.extractor.exceptions.ParsingException;
@@ -67,6 +65,7 @@ import org.schabi.newpipe.extractor.stream.StreamType;
 import org.schabi.newpipe.extractor.stream.VideoStream;
 import org.schabi.newpipe.fragments.BackPressable;
 import org.schabi.newpipe.fragments.BaseStateFragment;
+import org.schabi.newpipe.fragments.EmptyFragment;
 import org.schabi.newpipe.fragments.list.comments.CommentsFragment;
 import org.schabi.newpipe.fragments.list.videos.RelatedVideosFragment;
 import org.schabi.newpipe.info_list.InfoItemDialog;
@@ -78,6 +77,7 @@ import org.schabi.newpipe.player.playqueue.PlayQueue;
 import org.schabi.newpipe.player.playqueue.SinglePlayQueue;
 import org.schabi.newpipe.report.ErrorActivity;
 import org.schabi.newpipe.report.UserAction;
+import org.schabi.newpipe.util.AnimationUtils;
 import org.schabi.newpipe.util.Constants;
 import org.schabi.newpipe.util.ExtractorHelper;
 import org.schabi.newpipe.util.ImageDisplayConstants;
@@ -179,6 +179,7 @@ public class VideoDetailFragment
 
     private static final String COMMENTS_TAB_TAG = "COMMENTS";
     private static final String RELATED_TAB_TAG = "NEXT VIDEO";
+    private static final String EMPTY_TAB_TAG = "EMPTY TAB";
 
     private AppBarLayout appBarLayout;
     private  ViewPager viewPager;
@@ -367,7 +368,8 @@ public class VideoDetailFragment
                 }
                 break;
             case R.id.detail_controls_download:
-                if (PermissionHelper.checkStoragePermissions(activity, PermissionHelper.DOWNLOAD_DIALOG_REQUEST_CODE)) {
+                if (PermissionHelper.checkStoragePermissions(activity,
+                        PermissionHelper.DOWNLOAD_DIALOG_REQUEST_CODE)) {
                     this.openDownloadDialog();
                 }
                 break;
@@ -376,14 +378,14 @@ public class VideoDetailFragment
                     Log.w(TAG, "Can't open channel because we got no channel URL");
                 } else {
                     try {
-                        NavigationHelper.openChannelFragment(
-                                getFragmentManager(),
-                                currentInfo.getServiceId(),
-                                currentInfo.getUploaderUrl(),
-                                currentInfo.getUploaderName());
+                    NavigationHelper.openChannelFragment(
+                            getFragmentManager(),
+                            currentInfo.getServiceId(),
+                            currentInfo.getUploaderUrl(),
+                            currentInfo.getUploaderName());
                     } catch (Exception e) {
                         ErrorActivity.reportUiError((AppCompatActivity) getActivity(), e);
-                    }
+                }
                 }
                 break;
             case R.id.detail_thumbnail_root_layout:
@@ -625,13 +627,13 @@ public class VideoDetailFragment
         switch (id) {
             case R.id.menu_item_share: {
                 if (currentInfo != null) {
-                    shareUrl(currentInfo.getName(), currentInfo.getUrl());
+                    shareUrl(currentInfo.getName(), currentInfo.getOriginalUrl());
                 }
                 return true;
             }
             case R.id.menu_item_openInBrowser: {
                 if (currentInfo != null) {
-                    openUrlInBrowser(currentInfo.getUrl());
+                    openUrlInBrowser(currentInfo.getOriginalUrl());
                 }
                 return true;
             }
@@ -669,10 +671,16 @@ public class VideoDetailFragment
         boolean isExternalPlayerEnabled = PreferenceManager.getDefaultSharedPreferences(activity)
                 .getBoolean(activity.getString(R.string.use_external_video_player_key), false);
 
-        sortedVideoStreams = ListHelper.getSortedStreamVideosList(activity, info.getVideoStreams(), info.getVideoOnlyStreams(), false);
+        sortedVideoStreams = ListHelper.getSortedStreamVideosList(
+                activity,
+                info.getVideoStreams(),
+                info.getVideoOnlyStreams(),
+                false);
         selectedVideoStreamIndex = ListHelper.getDefaultResolutionIndex(activity, sortedVideoStreams);
 
-        final StreamItemAdapter<VideoStream> streamsAdapter = new StreamItemAdapter<>(activity, new StreamSizeWrapper<>(sortedVideoStreams), isExternalPlayerEnabled);
+        final StreamItemAdapter<VideoStream, Stream> streamsAdapter =
+                new StreamItemAdapter<>(activity,
+                        new StreamSizeWrapper<>(sortedVideoStreams, activity), isExternalPlayerEnabled);
         spinnerToolbar.setAdapter(streamsAdapter);
         spinnerToolbar.setSelection(selectedVideoStreamIndex);
         spinnerToolbar.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -697,17 +705,17 @@ public class VideoDetailFragment
      */
     protected final LinkedList<StackItem> stack = new LinkedList<>();
 
-    public void clearHistory() {
-        stack.clear();
-    }
-
     public void pushToStack(int serviceId, String videoUrl, String name) {
         if (DEBUG) {
-            Log.d(TAG, "pushToStack() called with: serviceId = [" + serviceId + "], videoUrl = [" + videoUrl + "], name = [" + name + "]");
+            Log.d(TAG, "pushToStack() called with: serviceId = ["
+                    + serviceId + "], videoUrl = [" + videoUrl + "], name = [" + name + "]");
         }
 
-        if (stack.size() > 0 && stack.peek().getServiceId() == serviceId && stack.peek().getUrl().equals(videoUrl)) {
-            Log.d(TAG, "pushToStack() called with: serviceId == peek.serviceId = [" + serviceId + "], videoUrl == peek.getUrl = [" + videoUrl + "]");
+        if (stack.size() > 0
+                && stack.peek().getServiceId() == serviceId
+                && stack.peek().getUrl().equals(videoUrl)) {
+            Log.d(TAG, "pushToStack() called with: serviceId == peek.serviceId = ["
+                    + serviceId + "], videoUrl == peek.getUrl = [" + videoUrl + "]");
             return;
         } else {
             Log.d(TAG, "pushToStack() wasn't equal");
@@ -738,7 +746,11 @@ public class VideoDetailFragment
         // Get stack item from the new top
         StackItem peek = stack.peek();
 
-        selectAndLoadVideo(peek.getServiceId(), peek.getUrl(), !TextUtils.isEmpty(peek.getTitle()) ? peek.getTitle() : "");
+        selectAndLoadVideo(peek.getServiceId(),
+                peek.getUrl(),
+                !TextUtils.isEmpty(peek.getTitle())
+                        ? peek.getTitle()
+                        : "");
         return true;
     }
 
@@ -758,20 +770,18 @@ public class VideoDetailFragment
     }
 
     public void prepareAndHandleInfo(final StreamInfo info, boolean scrollToTop) {
-        if (DEBUG)
-            Log.d(TAG, "prepareAndHandleInfo() called with: info = [" + info + "], scrollToTop = [" + scrollToTop + "]");
+        if (DEBUG) Log.d(TAG, "prepareAndHandleInfo() called with: info = ["
+                + info + "], scrollToTop = [" + scrollToTop + "]");
 
-        setInitialData(info.getServiceId(), info.getOriginalUrl(), info.getName());
+        setInitialData(info.getServiceId(), info.getUrl(), info.getName());
         pushToStack(serviceId, url, name);
         showLoading();
         initTabs();
 
         if (scrollToTop) appBarLayout.setExpanded(true, true);
-        animateView(contentRootLayoutHiding,
-                false, 0, 0, () -> {
-                    handleResult(info);
-                    showContentWithAnimation(120, 0, .01f);
-                });
+        handleResult(info);
+        showContent();
+
     }
 
     protected void prepareAndLoadInfo() {
@@ -794,8 +804,8 @@ public class VideoDetailFragment
                 .subscribe((@NonNull StreamInfo result) -> {
                     isLoading.set(false);
                     currentInfo = result;
-                    showContentWithAnimation(120, 0, 0);
                     handleResult(result);
+                    showContent();
                 }, (@NonNull Throwable throwable) -> {
                     isLoading.set(false);
                     onError(throwable);
@@ -815,6 +825,10 @@ public class VideoDetailFragment
             pageAdapter.addFragment(new Fragment(), RELATED_TAB_TAG);
         }
 
+        if(pageAdapter.getCount() == 0){
+            pageAdapter.addFragment(new EmptyFragment(), EMPTY_TAB_TAG);
+        }
+
         pageAdapter.notifyDataSetUpdate();
 
         if(pageAdapter.getCount() < 2){
@@ -825,12 +839,11 @@ public class VideoDetailFragment
     }
 
     private boolean shouldShowComments() {
-        /*try {
-            return showComments && NewPipe.getService(serviceId).isCommentsSupported();
+        try {
+            return showComments && !NewPipe.getService(serviceId).getCommentingServices().isEmpty();
         } catch (ExtractionException e) {
             return false;
-        }*/
-        return true;
+        }
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -961,36 +974,8 @@ public class VideoDetailFragment
         thumbnailImageView.setMinimumHeight(height);
     }
 
-    private void showContentWithAnimation(long duration,
-                                          long delay,
-                                          @FloatRange(from = 0.0f, to = 1.0f) float translationPercent) {
-        int translationY = (int) (getResources().getDisplayMetrics().heightPixels *
-                (translationPercent > 0.0f ? translationPercent : .06f));
-
-        contentRootLayoutHiding.animate().setListener(null).cancel();
-        contentRootLayoutHiding.setAlpha(0f);
-        contentRootLayoutHiding.setTranslationY(translationY);
-        contentRootLayoutHiding.setVisibility(View.VISIBLE);
-        contentRootLayoutHiding.animate()
-                .alpha(1f)
-                .translationY(0)
-                .setStartDelay(delay)
-                .setDuration(duration)
-                .setInterpolator(new FastOutSlowInInterpolator())
-                .start();
-
-        uploaderRootLayout.animate().setListener(null).cancel();
-        uploaderRootLayout.setAlpha(0f);
-        uploaderRootLayout.setTranslationY(translationY);
-        uploaderRootLayout.setVisibility(View.VISIBLE);
-        uploaderRootLayout.animate()
-                .alpha(1f)
-                .translationY(0)
-                .setStartDelay((long) (duration * .5f) + delay)
-                .setDuration(duration)
-                .setInterpolator(new FastOutSlowInInterpolator())
-                .start();
-
+    private void showContent() {
+        AnimationUtils.slideUp(contentRootLayoutHiding,120, 96, 0.06f);
     }
 
     protected void setInitialData(int serviceId, String url, String name) {
@@ -1025,7 +1010,7 @@ public class VideoDetailFragment
     public void showLoading() {
         super.showLoading();
 
-        animateView(contentRootLayoutHiding, false, 200);
+        contentRootLayoutHiding.setVisibility(View.INVISIBLE);
         animateView(spinnerToolbar, false, 200);
         animateView(thumbnailPlayButton, false, 50);
         animateView(detailDurationView, false, 100);
@@ -1071,7 +1056,7 @@ public class VideoDetailFragment
             }
         }
 
-        pushToStack(serviceId, url, name);
+        //pushToStack(serviceId, url, name);
 
         animateView(thumbnailPlayButton, true, 200);
         videoTitleTextView.setText(name);
@@ -1122,11 +1107,13 @@ public class VideoDetailFragment
 
         if (info.getDuration() > 0) {
             detailDurationView.setText(Localization.getDurationString(info.getDuration()));
-            detailDurationView.setBackgroundColor(ContextCompat.getColor(activity, R.color.duration_background_color));
+            detailDurationView.setBackgroundColor(
+                    ContextCompat.getColor(activity, R.color.duration_background_color));
             animateView(detailDurationView, true, 100);
         } else if (info.getStreamType() == StreamType.LIVE_STREAM) {
             detailDurationView.setText(R.string.duration_live);
-            detailDurationView.setBackgroundColor(ContextCompat.getColor(activity, R.color.live_duration_background_color));
+            detailDurationView.setBackgroundColor(
+                    ContextCompat.getColor(activity, R.color.live_duration_background_color));
             animateView(detailDurationView, true, 100);
         } else {
             detailDurationView.setVisibility(View.GONE);
@@ -1183,19 +1170,28 @@ public class VideoDetailFragment
 
 
     public void openDownloadDialog() {
-        try {
-            DownloadDialog downloadDialog = DownloadDialog.newInstance(currentInfo);
-            downloadDialog.setVideoStreams(sortedVideoStreams);
-            downloadDialog.setAudioStreams(currentInfo.getAudioStreams());
-            downloadDialog.setSelectedVideoStream(selectedVideoStreamIndex);
+            try {
+                DownloadDialog downloadDialog = DownloadDialog.newInstance(currentInfo);
+                downloadDialog.setVideoStreams(sortedVideoStreams);
+                downloadDialog.setAudioStreams(currentInfo.getAudioStreams());
+                downloadDialog.setSelectedVideoStream(selectedVideoStreamIndex);
+                downloadDialog.setSubtitleStreams(currentInfo.getSubtitles());
 
-            downloadDialog.show(activity.getSupportFragmentManager(), "downloadDialog");
-        } catch (Exception e) {
-            Toast.makeText(activity,
-                    R.string.could_not_setup_download_menu,
-                    Toast.LENGTH_LONG).show();
-            e.printStackTrace();
-        }
+                downloadDialog.show(activity.getSupportFragmentManager(), "downloadDialog");
+            } catch (Exception e) {
+                ErrorActivity.ErrorInfo info = ErrorActivity.ErrorInfo.make(UserAction.UI_ERROR,
+                        ServiceList.all()
+                                .get(currentInfo
+                                        .getServiceId())
+                                .getServiceInfo()
+                                .getName(), "",
+                        R.string.could_not_setup_download_menu);
+
+                ErrorActivity.reportError(getActivity(),
+                        e,
+                        getActivity().getClass(),
+                        getActivity().findViewById(android.R.id.content), info);
+            }
     }
 
     /*//////////////////////////////////////////////////////////////////////////

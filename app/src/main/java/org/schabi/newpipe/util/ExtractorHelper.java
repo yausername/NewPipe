@@ -28,15 +28,16 @@ import android.widget.Toast;
 import org.schabi.newpipe.MainActivity;
 import org.schabi.newpipe.R;
 import org.schabi.newpipe.ReCaptchaActivity;
+import org.schabi.newpipe.extractor.CommentingService;
 import org.schabi.newpipe.extractor.Info;
 import org.schabi.newpipe.extractor.InfoItem;
 import org.schabi.newpipe.extractor.ListExtractor.InfoItemsPage;
 import org.schabi.newpipe.extractor.NewPipe;
+import org.schabi.newpipe.extractor.SuggestionExtractor;
 import org.schabi.newpipe.extractor.channel.ChannelInfo;
-import org.schabi.newpipe.extractor.comments.CommentsExtractor;
 import org.schabi.newpipe.extractor.comments.CommentsInfo;
-import org.schabi.newpipe.extractor.comments.RedditCommentsExtractor;
 import org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException;
+import org.schabi.newpipe.extractor.exceptions.ExtractionException;
 import org.schabi.newpipe.extractor.exceptions.ParsingException;
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException;
 import org.schabi.newpipe.extractor.kiosk.KioskInfo;
@@ -49,12 +50,11 @@ import org.schabi.newpipe.report.UserAction;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.util.Collections;
 import java.util.List;
 
 import io.reactivex.Maybe;
 import io.reactivex.Single;
-
-import static org.schabi.newpipe.extractor.ServiceList.YouTube;
 
 public final class ExtractorHelper {
     private static final String TAG = ExtractorHelper.class.getSimpleName();
@@ -101,10 +101,13 @@ public final class ExtractorHelper {
     public static Single<List<String>> suggestionsFor(final int serviceId,
                                                       final String query) {
         checkServiceId(serviceId);
-        return Single.fromCallable(() ->
-                NewPipe.getService(serviceId)
-                        .getSuggestionExtractor()
-                        .suggestionList(query));
+        return Single.fromCallable(() -> {
+            SuggestionExtractor extractor = NewPipe.getService(serviceId)
+                    .getSuggestionExtractor();
+            return extractor != null
+                    ? extractor.suggestionList(query)
+                    : Collections.emptyList();
+        });
     }
 
     public static Single<StreamInfo> getStreamInfo(final int serviceId,
@@ -134,9 +137,15 @@ public final class ExtractorHelper {
     public static Single<CommentsInfo> getCommentsInfo(final int serviceId,
                                                        final String url,
                                                        boolean forceLoad) {
-        checkServiceId(serviceId);
+        //checkServiceId(serviceId);
+        final CommentingService service;
+        try {
+            service = NewPipe.getCommentingService(serviceId);
+        } catch (ExtractionException e) {
+            throw new IllegalArgumentException("serviceId is not supported");
+        }
         return checkCache(forceLoad, serviceId, url, InfoItem.InfoType.COMMENT, Single.fromCallable(() ->
-                CommentsInfo.getInfo(NewPipe.getService(serviceId), url)));
+                CommentsInfo.getInfo(service.getCommentsExtractor(url))));
     }
 
     public static Single<InfoItemsPage> getMoreCommentItems(final int serviceId,
@@ -145,14 +154,6 @@ public final class ExtractorHelper {
         checkServiceId(serviceId);
         return Single.fromCallable(() ->
                 CommentsInfo.getMoreItems(NewPipe.getService(serviceId), info, nextPageUrl));
-    }
-
-    public static Single<CommentsInfo> getRedditCommentsInfo(final String url,
-                                                       boolean forceLoad) {
-        return checkCache(forceLoad, REDDIT_SERVICE_ID, url, InfoItem.InfoType.COMMENT, Single.fromCallable(() -> {
-            CommentsExtractor extractor = new RedditCommentsExtractor(YouTube, YouTube.getCommentsLHFactory().fromUrl(url), NewPipe.getPreferredLocalization());
-            return CommentsInfo.getInfo(extractor);
-        }));
     }
 
     public static Single<PlaylistInfo> getPlaylistInfo(final int serviceId,

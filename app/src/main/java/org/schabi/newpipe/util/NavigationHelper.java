@@ -21,6 +21,7 @@ import com.nostra13.universalimageloader.core.ImageLoader;
 
 import org.schabi.newpipe.MainActivity;
 import org.schabi.newpipe.R;
+import org.schabi.newpipe.RouterActivity;
 import org.schabi.newpipe.about.AboutActivity;
 import org.schabi.newpipe.download.DownloadActivity;
 import org.schabi.newpipe.extractor.NewPipe;
@@ -419,6 +420,13 @@ public class NavigationHelper {
         Intent mIntent = new Intent(context, MainActivity.class);
         mIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         mIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        context.startActivity(mIntent);
+    }
+
+    public static void openRouterActivity(Context context, String url) {
+        Intent mIntent = new Intent(context, RouterActivity.class);
+        mIntent.setData(Uri.parse(url));
+        mIntent.putExtra(RouterActivity.internalRouteKey, true);
         context.startActivity(mIntent);
     }
 
